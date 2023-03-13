@@ -7,14 +7,16 @@
 ## Installation
 
 - Clone this git repo to your host.
+
 - Execute the script as follows:
+  ```
   ./ocp4healthcheck.sh 
 
   usage: ocp4healthcheck.sh [--live | --must-gather] [--log]
 
   Options:
 
-  -  --live         => analyze a running cluster in real-time
-  -  --must-gather  => analyze a must-gather
-  -  --log          => log the output to a file named ocp4healthcheck.log (created in the current working directory)
-
+  --live         => analyze a running cluster in real-time
+  --must-gather  => analyze a must-gather
+  --log          => log the output to a file named ocp4healthcheck.log (created in the current working directory)
+  ```
