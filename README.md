@@ -8,6 +8,10 @@
 
 - Clone this git repo to your host.
 
+- Ensure the script is executable as follows:
+
+  `chmod +x ocp4healthcheck.sh`
+
 - Execute the script as follows:
   ```
   ./ocp4healthcheck.sh 
