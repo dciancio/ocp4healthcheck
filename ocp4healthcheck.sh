@@ -1,0 +1,203 @@
+#!/bin/bash
+
+OPTION=$1
+
+OUTPUT_PATH="/tmp/DATA"
+rm -rf $OUTPUT_PATH
+mkdir -p $OUTPUT_PATH
+
+## Report based on a must-gather or live cluster
+
+if [[ "$OPTION" != "--live" ]] && [[ "$OPTION" != "--must-gather" ]]; then
+  printf "usage: $0 [--live | --must-gather]\n" >&2 && exit 1
+fi
+
+if [[ "$OPTION" = "--live" ]]; then
+  OCWHOAMI=$(oc whoami 2>/dev/null)
+  if [[ -z "$OCWHOAMI" ]]; then
+    printf "Live option requires that OC login user context to be set. Ensure the user has cluster-admin permissions.\n" >&2 && exit 1
+  fi
+  CMD="oc"
+  printf "Using this oc login user context:\n" 
+  printf "API URL: %s   USER: %s\n" $(oc whoami --show-server) $(oc whoami)
+fi
+
+if [[ "$OPTION" = "--must-gather" ]]; then
+  omc use | grep 'must-gather: ""' && printf "Must-gather option requires configuring a must-gather to use with omc (https://github.com/gmeghnag/omc).\n" >&2 && exit 1
+  CMD="omc"
+  printf "Using this omc must-gather report:\n" 
+  $CMD use
+fi
+
+echo ""
+read -p "Would you like to continue (Y/y) or set another user context for oc or omc (N/n)? " -n 1 -r
+echo ""
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+  exit 0
+fi
+
+OCPVER=$($CMD get clusterversion -o=jsonpath={.items[*].status.desired.version})
+
+# OCP version
+printf "\nOCP version:  ${OCPVER}\n"
+
+ETCDNS="openshift-etcd"
+# ETCD Health
+printf "\nETCD state:\n"
+if [[ "$OPTION" = "--live" ]]; then
+  ETCD=( $($CMD -n $ETCDNS get -l k8s-app=etcd pods -o name | tr -s '\n' ' ' | sed 's/pod\///g' ) )
+  for i in ${ETCD[@]}; do
+    echo -e ""
+    echo -e "-[$i]--------------------"
+    $CMD exec -n $ETCDNS $i -c etcdctl -- etcdctl endpoint status -w table
+  done
+fi
+if [[ "$OPTION" = "--must-gather" ]]; then
+  $CMD etcd health
+  $CMD etcd status
+fi
+
+# ETCD log analysis
+for i in $($CMD -n $ETCDNS get pods -l etcd -o name | grep -v NAME)
+do
+  printf "\nETCD log analysis:\n"
+  echo -e ""
+  echo -e "-[$i]--------------------"
+  if [[ "$OPTION" = "--live" ]]; then
+    printf "Log timestamp - Start               : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | head -1 | tail -1|cut -d ',' -f2 | cut -d ':' -f2-5| tr -d '"') 
+    printf "Log timestamp - End                 : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | tail -1 | tail -1|cut -d ',' -f2 | cut -d ':' -f2-5| tr -d '"') 
+  fi
+  if [[ "$OPTION" = "--must-gather" ]]; then
+    printf "Log timestamp - Start               : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | head -1 | awk '{print $1}') 
+    printf "Log timestamp - End                 : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | tail -1 | awk '{print $1}') 
+  fi
+  printf "local node might have slow network  : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "local node might have slow network")
+  printf "elected leader                      : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "elected leader")
+  printf "leader changed                      : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "leader changed")
+  printf "took too long                       : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "took too long")
+  printf "lost leader                         : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "lost leader")
+  printf "wal: sync duration                  : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "wal: sync duration")
+  printf "slow fdatasync messages             : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "slow fdatasync")
+  printf "the clock difference against peer   : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "the clock difference against peer")
+  printf "lease not found                     : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "lease not found")
+  printf "rafthttp: failed to read            : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "rafthttp: failed to read")
+  printf "server is likely overloaded         : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "overloaded")
+  printf "failed to send out heartbeat on time: %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "failed to send out heartbeat on time")
+  printf "lost the tcp streaming              : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "lost the tcp streaming")
+  printf "sending buffer is full              : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "sending buffer is full")
+  printf "database space exceeded             : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "database space exceeded")
+  printf "Recent compaction                   : %10s\n" $($CMD logs -c etcd -n $ETCDNS $i | grep compaction|tail -8|cut -d ',' -f6)
+
+  if [[ "$OPTION" = "--live" ]]; then
+
+  # ETCD object count
+  echo -e ""
+  echo -e "ETCD object count:"
+  echo -e ""
+  $CMD exec -n $ETCDNS $i -c etcdctl -n $ETCDNS -- etcdctl get / --prefix --keys-only | sed '/^$/d' | cut -d/ -f3 | sort | uniq -c | sort -rn | head -14
+  echo -e ""
+
+  echo -e ""
+  echo -e "ETCD objects [most events]:"
+  echo -e ""
+  $CMD exec -n $ETCDNS $i -c etcdctl -n $ETCDNS -- etcdctl get / --prefix --keys-only | grep event |cut -d/ -f3,4| sort | uniq -c | sort -n --rev| head -10
+  echo -e ""
+
+  fi
+done
+
+if [[ "$OPTION" = "--live" ]]; then
+  # API top consumers
+  echo -e ""
+  echo -e "API top consumers kube-apiserver on masters:"
+  echo -e ""
+  AUDIT_LOGS=$(oc adm node-logs --role=master --path=kube-apiserver|grep audit-)
+  node=""
+  for i in $AUDIT_LOGS; do
+    echo -e "[ processing $i ]"
+    if [[ $i == *".log"* ]]; then
+      oc adm node-logs $node --path=kube-apiserver/$i > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2)
+      cat $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2) |jq '.user.username' -r > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username
+      sort $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username | uniq -c | sort -bgr|head -5
+      echo -e ""
+    else
+      node=$i
+      continue
+    fi
+  done
+
+  # API top consumers
+  echo -e ""
+  echo -e "API top consumers openshift-apiserver on masters:"
+  echo -e ""
+  AUDIT_LOGS=$(oc adm node-logs --role=master --path=openshift-apiserver|grep audit-)
+  node=""
+  for i in $AUDIT_LOGS; do
+    echo -e "[ processing $i ]"
+    if [[ $i == *".log"* ]]; then
+      oc adm node-logs $node --path=openshift-apiserver/$i > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2)
+      cat $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2) |jq '.user.username' -r > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username
+      sort $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username | uniq -c | sort -bgr |head -5
+      echo -e ""
+    else
+      node=$i
+      continue
+    fi
+  done
+fi
+
+# Alerts Firing
+printf "\nAlerts firing:\n"
+if [[ "$OPTION" = "--live" ]]; then
+  $CMD -n openshift-monitoring exec -c prometheus prometheus-k8s-0 -- curl -s 'http://localhost:9090/api/v1/alerts' | jq -r '.data[]|.[]|select(.state == "firing")|(.labels.alertname+"|"+.annotations.description))'
+fi
+if [[ "$OPTION" = "--must-gather" ]]; then
+  $CMD alert rule -o json | jq -r '.data[]|select(.state == "firing")|.alerts[]|(.labels.alertname+"|"+.annotations.message+"|"+.annotations.description)'
+fi
+
+# Cluster Events
+printf "\nCluster Events (Non-Normal):\n"
+$CMD get events -A |grep -v Normal
+
+# Node state
+printf "\nNode state:\n"
+printf "Total Nodes:        %5d\t" $($CMD get nodes | grep -v NAME | wc -l)
+printf "Non-Ready Nodes:    %5d\n" $($CMD get nodes | grep -v NAME | grep -vw Ready | wc -l)
+printf "Resource to investigate:\n"
+$CMD get nodes | grep -v NAME | grep -vw Ready
+
+# CO state
+printf "\nCO state:\n"
+printf "Total COs:          %5d\t" $($CMD get co | grep -v NAME | wc -l)
+printf "Non-Ready COs:      %5d\n" $($CMD get co | grep -v NAME | egrep -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)" | wc -l)
+printf "Resource to investigate:\n"
+$CMD get co | grep -v NAME | egrep -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)"
+
+# MCP state
+printf "\nMCP state:\n"
+printf "Total MCPs:         %5d\t" $($CMD get mcp | grep -v NAME | wc -l)
+printf "Non-Ready MCPs:     %5d\n" $($CMD get mcp | grep -v NAME | egrep -v "(.*)True(\s+)False(\s+)False(.*)" | wc -l)
+printf "Resource to investigate:\n"
+$CMD get mcp | grep -v NAME | egrep -v "(.*)True(\s+)False(\s+)False(.*)" 
+
+# Operator state
+printf "\nOperator state:\n"
+printf "Total CSVs:         %5d\t" $($CMD get csv -A | grep -v NAMESPACE | wc -l)
+printf "Failed CSVs:        %5d\n" $($CMD get csv -A | grep -v NAMESPACE | grep -v Succeeded | wc -l)
+printf "Resource to investigate:\n"
+$CMD get csv -A | grep -v NAMESPACE | grep -v Succeeded
+
+# Operator sub
+printf "\nOperator subscription channels:\n"
+$CMD get sub -A
+
+# Pod state
+printf "\nPod state:\n"
+printf "Total Running Pods: %5d\t" $($CMD get pods -A | grep -v NAMESPACE | grep Running | wc -l)
+printf "Non-Running Pods:   %5d\n" $($CMD get pods -A | grep -v NAMESPACE | grep -v Running | grep -v Completed | wc -l)
+printf "Resource to investigate:\n"
+$CMD get pods -A | grep -v NAMESPACE | grep -v Running | grep -v Completed
+
+# Pod restarts, ordered by highest number of restarts first
+printf "\nPod restarts:\n"
+$CMD get pods -A | grep -v NAMESPACE | grep -v Completed | egrep -v "(.*)Running(\s+)0(.*)" | sort -k5 -n -r
