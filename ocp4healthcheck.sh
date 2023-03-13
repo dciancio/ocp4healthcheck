@@ -1,6 +1,7 @@
 #!/bin/bash
 
-OPTION=$1
+OPTION1=$1
+OPTION2=$2
 
 OUTPUT_PATH="/tmp/DATA"
 rm -rf $OUTPUT_PATH
@@ -8,11 +9,11 @@ mkdir -p $OUTPUT_PATH
 
 ## Report based on a must-gather or live cluster
 
-if [[ "$OPTION" != "--live" ]] && [[ "$OPTION" != "--must-gather" ]]; then
-  printf "usage: $0 [--live | --must-gather]\n" >&2 && exit 1
+if [[ "$OPTION1" != "--live" ]] && [[ "$OPTION1" != "--must-gather" ]] && [[ "$OPTION2" != "--log" ]]; then
+  printf "usage: $0 [--live | --must-gather] [--log]\n" >&2 && exit 1
 fi
 
-if [[ "$OPTION" = "--live" ]]; then
+if [[ "$OPTION1" = "--live" ]]; then
   OCWHOAMI=$(oc whoami 2>/dev/null)
   if [[ -z "$OCWHOAMI" ]]; then
     printf "Live option requires that OC login user context to be set. Ensure the user has cluster-admin permissions.\n" >&2 && exit 1
@@ -22,7 +23,7 @@ if [[ "$OPTION" = "--live" ]]; then
   printf "API URL: %s   USER: %s\n" $(oc whoami --show-server) $(oc whoami)
 fi
 
-if [[ "$OPTION" = "--must-gather" ]]; then
+if [[ "$OPTION1" = "--must-gather" ]]; then
   omc use | grep 'must-gather: ""' && printf "Must-gather option requires configuring a must-gather to use with omc (https://github.com/gmeghnag/omc).\n" >&2 && exit 1
   CMD="omc"
   printf "Using this omc must-gather report:\n" 
@@ -36,6 +37,10 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
+if [[ "$OPTION2" = "--log" ]]; then
+  exec &>ocp4healthcheck.log
+fi
+
 OCPVER=$($CMD get clusterversion -o=jsonpath={.items[*].status.desired.version})
 
 # OCP version
@@ -44,7 +49,7 @@ printf "\nOCP version:  ${OCPVER}\n"
 ETCDNS="openshift-etcd"
 # ETCD Health
 printf "\nETCD state:\n"
-if [[ "$OPTION" = "--live" ]]; then
+if [[ "$OPTION1" = "--live" ]]; then
   ETCD=( $($CMD -n $ETCDNS get -l k8s-app=etcd pods -o name | tr -s '\n' ' ' | sed 's/pod\///g' ) )
   for i in ${ETCD[@]}; do
     echo -e ""
@@ -52,7 +57,7 @@ if [[ "$OPTION" = "--live" ]]; then
     $CMD exec -n $ETCDNS $i -c etcdctl -- etcdctl endpoint status -w table
   done
 fi
-if [[ "$OPTION" = "--must-gather" ]]; then
+if [[ "$OPTION1" = "--must-gather" ]]; then
   $CMD etcd health
   $CMD etcd status
 fi
@@ -63,11 +68,11 @@ do
   printf "\nETCD log analysis:\n"
   echo -e ""
   echo -e "-[$i]--------------------"
-  if [[ "$OPTION" = "--live" ]]; then
+  if [[ "$OPTION1" = "--live" ]]; then
     printf "Log timestamp - Start               : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | head -1 | tail -1|cut -d ',' -f2 | cut -d ':' -f2-5| tr -d '"') 
     printf "Log timestamp - End                 : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | tail -1 | tail -1|cut -d ',' -f2 | cut -d ':' -f2-5| tr -d '"') 
   fi
-  if [[ "$OPTION" = "--must-gather" ]]; then
+  if [[ "$OPTION1" = "--must-gather" ]]; then
     printf "Log timestamp - Start               : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | head -1 | awk '{print $1}') 
     printf "Log timestamp - End                 : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | tail -1 | awk '{print $1}') 
   fi
@@ -88,7 +93,7 @@ do
   printf "database space exceeded             : %10d\n" $($CMD logs -c etcd -n $ETCDNS $i | grep -ic "database space exceeded")
   printf "Recent compaction                   : %10s\n" $($CMD logs -c etcd -n $ETCDNS $i | grep compaction|tail -8|cut -d ',' -f6)
 
-  if [[ "$OPTION" = "--live" ]]; then
+  if [[ "$OPTION1" = "--live" ]]; then
 
   # ETCD object count
   echo -e ""
@@ -106,7 +111,7 @@ do
   fi
 done
 
-if [[ "$OPTION" = "--live" ]]; then
+if [[ "$OPTION1" = "--live" ]]; then
   # API top consumers
   echo -e ""
   echo -e "API top consumers kube-apiserver on masters:"
@@ -148,10 +153,10 @@ fi
 
 # Alerts Firing
 printf "\nAlerts firing:\n"
-if [[ "$OPTION" = "--live" ]]; then
+if [[ "$OPTION1" = "--live" ]]; then
   $CMD -n openshift-monitoring exec -c prometheus prometheus-k8s-0 -- curl -s 'http://localhost:9090/api/v1/alerts' | jq -r '.data[]|.[]|select(.state == "firing")|(.labels.alertname+"|"+.annotations.description))'
 fi
-if [[ "$OPTION" = "--must-gather" ]]; then
+if [[ "$OPTION1" = "--must-gather" ]]; then
   $CMD alert rule -o json | jq -r '.data[]|select(.state == "firing")|.alerts[]|(.labels.alertname+"|"+.annotations.message+"|"+.annotations.description)'
 fi
 
