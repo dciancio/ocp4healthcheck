@@ -1,5 +1,6 @@
 ## Pre-requisites
 
+- jq (https://stedolan.github.io/jq/download/).
 - OC CLI (https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp). Select the appropriate version and install on your host (e.g. /usr/local/bin).
 - OMC (https://github.com/gmeghnag/omc) for reading must-gather reports.  Select the latest release and install on your host (e.g. /usr/local/bin).
 
