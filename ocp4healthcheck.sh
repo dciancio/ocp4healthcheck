@@ -118,6 +118,7 @@ if [[ "$OPTION1" = "--live" ]]; then
     LOGFN=$(echo $i | awk '{print $2}')
     echo -e "[ Processing NODE: $NODE  LOGFILE: $LOGFN ]"
     oc adm node-logs $NODE --path=kube-apiserver/$LOGFN | jq -r '.user.username' | sort | uniq -c | sort -bgr | head -10 
+    echo -e ""
   done
 
   echo -e ""
@@ -129,6 +130,7 @@ if [[ "$OPTION1" = "--live" ]]; then
     LOGFN=$(echo $i | awk '{print $2}')
     echo -e "[ Processing NODE: $NODE  LOGFILE: $LOGFN ]"
     oc adm node-logs $NODE --path=openshift-apiserver/$LOGFN | jq -r '.user.username' | sort | uniq -c | sort -bgr | head -10 
+    echo -e ""
   done
 fi
 
