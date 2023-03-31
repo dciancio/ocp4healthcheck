@@ -3,10 +3,6 @@
 OPTION1=$1
 OPTION2=$2
 
-OUTPUT_PATH="/tmp/DATA"
-rm -rf $OUTPUT_PATH
-mkdir -p $OUTPUT_PATH
-
 ## Report based on a must-gather or live cluster
 
 if [[ "$OPTION1" != "--live" ]] && [[ "$OPTION1" != "--must-gather" ]] && [[ "$OPTION2" != "--log" ]]; then
@@ -116,43 +112,28 @@ if [[ "$OPTION1" = "--live" ]]; then
   echo -e ""
   echo -e "API top consumers kube-apiserver on masters:"
   echo -e ""
-  AUDIT_LOGS=$(oc adm node-logs --role=master --path=kube-apiserver|grep audit-)
-  node=""
-  for i in $AUDIT_LOGS; do
-    echo -e "[ processing $i ]"
-    if [[ $i == *".log"* ]]; then
-      oc adm node-logs $node --path=kube-apiserver/$i > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2)
-      cat $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2) |jq '.user.username' -r > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username
-      sort $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username | uniq -c | sort -bgr|head -5
-      echo -e ""
-    else
-      node=$i
-      continue
-    fi
+  IFS=$'\n'
+  for i in $(oc adm node-logs --role=master --path=kube-apiserver|grep "audit-.*.log"); do
+    NODE=$(echo $i | awk '{print $1}')
+    LOGFN=$(echo $i | awk '{print $2}')
+    echo -e "[ Processing NODE: $NODE  LOGFILE: $LOGFN ]"
+    oc adm node-logs $NODE --path=kube-apiserver/$LOGFN | jq -r '.user.username' | sort | uniq -c | sort -bgr | head -10 
   done
 
-  # API top consumers
   echo -e ""
   echo -e "API top consumers openshift-apiserver on masters:"
   echo -e ""
-  AUDIT_LOGS=$(oc adm node-logs --role=master --path=openshift-apiserver|grep audit-)
-  node=""
-  for i in $AUDIT_LOGS; do
-    echo -e "[ processing $i ]"
-    if [[ $i == *".log"* ]]; then
-      oc adm node-logs $node --path=openshift-apiserver/$i > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2)
-      cat $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2) |jq '.user.username' -r > $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username
-      sort $OUTPUT_PATH/$(echo $i|cut -d ' ' -f2).username | uniq -c | sort -bgr |head -5
-      echo -e ""
-    else
-      node=$i
-      continue
-    fi
+  IFS=$'\n'
+  for i in $(oc adm node-logs --role=master --path=openshift-apiserver|grep "audit-.*.log"); do
+    NODE=$(echo $i | awk '{print $1}')
+    LOGFN=$(echo $i | awk '{print $2}')
+    echo -e "[ Processing NODE: $NODE  LOGFILE: $LOGFN ]"
+    oc adm node-logs $NODE --path=openshift-apiserver/$LOGFN | jq -r '.user.username' | sort | uniq -c | sort -bgr | head -10 
   done
 fi
 
-# Alerts Firing
-printf "\nAlerts firing:\n"
+# Monitoring Alerts Firing
+printf "\nMonitoring Alerts firing:\n"
 if [[ "$OPTION1" = "--live" ]]; then
   $CMD -n openshift-monitoring exec -c prometheus prometheus-k8s-0 -- curl -s 'http://localhost:9090/api/v1/alerts' | jq -r '.data[]|.[]|select(.state == "firing")|(.labels.alertname+"|"+.annotations.description))'
 fi
@@ -171,15 +152,22 @@ printf "Non-Ready Nodes:    %5d\n" $($CMD get nodes | grep -v NAME | grep -vw Re
 printf "Resource to investigate:\n"
 $CMD get nodes | grep -v NAME | grep -vw Ready
 
-# CO state
-printf "\nCO state:\n"
+# Cluster Operator state
+printf "\nCluster Operator state:\n"
 printf "Total COs:          %5d\t" $($CMD get co | grep -v NAME | wc -l)
 printf "Non-Ready COs:      %5d\n" $($CMD get co | grep -v NAME | egrep -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)" | wc -l)
 printf "Resource to investigate:\n"
 $CMD get co | grep -v NAME | egrep -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)"
 
-# MCP state
-printf "\nMCP state:\n"
+# API Services state
+printf "\nAPI Services state:\n"
+printf "Total API Services:          %5d\t" $($CMD get apiservices -o=custom-columns="name:.metadata.name,status:.status.conditions[0].status" | grep -v NAME | wc -l)
+printf "Non-Ready API Services:      %5d\n" $($CMD get apiservices -o=custom-columns="name:.metadata.name,status:.status.conditions[0].status" | grep -v NAME | egrep -v "(.*)(\s+)False(\s+)" | wc -l)
+printf "Resource to investigate:\n"
+$CMD get apiservices -o=custom-columns="name:.metadata.name,status:.status.conditions[0].status" | grep -v NAME | egrep -v "(.*)(\s+)False(\s+)"
+
+# Machine Config Pool state
+printf "\nMachine Config Pool state:\n"
 printf "Total MCPs:         %5d\t" $($CMD get mcp | grep -v NAME | wc -l)
 printf "Non-Ready MCPs:     %5d\n" $($CMD get mcp | grep -v NAME | egrep -v "(.*)True(\s+)False(\s+)False(.*)" | wc -l)
 printf "Resource to investigate:\n"
