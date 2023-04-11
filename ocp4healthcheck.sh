@@ -163,10 +163,10 @@ $CMD get co | grep -v NAME | egrep -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)Fals
 
 # API Services state
 printf "\nAPI Services state:\n"
-printf "Total API Services:          %5d\t" $($CMD get apiservices -o=custom-columns="name:.metadata.name,status:.status.conditions[0].status" | grep -v NAME | wc -l)
-printf "Non-Ready API Services:      %5d\n" $($CMD get apiservices -o=custom-columns="name:.metadata.name,status:.status.conditions[0].status" | grep -v NAME | egrep -v "(.*)(\s+)False(\s+)" | wc -l)
+printf "Total API Services:          %5d\t" $($CMD get apiservices | grep -v NAME | wc -l)
+printf "Non-Ready API Services:      %5d\n" $($CMD get apiservices | grep -v NAME | egrep -v "(.*)True(.*)" | wc -l)
 printf "Resource to investigate:\n"
-$CMD get apiservices -o=custom-columns="name:.metadata.name,status:.status.conditions[0].status" | grep -v NAME | egrep -v "(.*)(\s+)False(\s+)"
+$CMD get apiservices | grep -v NAME | egrep -v "(.*)True(.*)"
 
 # Machine Config Pool state
 printf "\nMachine Config Pool state:\n"
