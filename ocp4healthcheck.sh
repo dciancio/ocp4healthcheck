@@ -195,4 +195,4 @@ $CMD get pods -A | grep -v NAMESPACE | grep -v Running | grep -v Completed
 
 # Pod restarts, ordered by highest number of restarts first
 printf "\nPod restarts:\n"
-$CMD get pods -A | grep -v NAMESPACE | grep -v Completed | egrep -v "(.*)Running(\s+)0(.*)" | sort -k5 -n -r
+$CMD get pods -A -o wide | grep -v NAMESPACE | grep -v Completed | egrep -v "(.*)Running(\s+)0(.*)" | sort -k5 -n -r
