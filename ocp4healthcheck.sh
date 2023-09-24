@@ -65,8 +65,8 @@ do
   echo -e ""
   echo -e "-[$i]--------------------"
   if [[ "$OPTION1" = "--live" ]]; then
-    printf "Log timestamp - Start               : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | head -1 | tail -1|cut -d ',' -f2 | cut -d ':' -f2-5| tr -d '"') 
-    printf "Log timestamp - End                 : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | tail -1 | tail -1|cut -d ',' -f2 | cut -d ':' -f2-5| tr -d '"') 
+    printf "Log timestamp - Start               : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i --timestamps | head -1 | awk '{print $1}') 
+    printf "Log timestamp - End                 : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i --timestamps | tail -1 | awk '{print $1}') 
   fi
   if [[ "$OPTION1" = "--must-gather" ]]; then
     printf "Log timestamp - Start               : %30s\n" $($CMD logs -c etcd -n $ETCDNS $i | head -1 | awk '{print $1}') 
@@ -158,23 +158,23 @@ $CMD get nodes | grep -v NAME | grep -vw Ready
 # Cluster Operator state
 printf "\nCluster Operator state:\n"
 printf "Total COs:          %5d\t" $($CMD get co | grep -v NAME | wc -l)
-printf "Non-Ready COs:      %5d\n" $($CMD get co | grep -v NAME | egrep -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)" | wc -l)
+printf "Non-Ready COs:      %5d\n" $($CMD get co | grep -v NAME | grep -E -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)" | wc -l)
 printf "Resource to investigate:\n"
-$CMD get co | grep -v NAME | egrep -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)"
+$CMD get co | grep -v NAME | grep -E -v "(.*)${OCPVER}(\s+)True(\s+)False(\s+)False(\s+)"
 
 # API Services state
 printf "\nAPI Services state:\n"
 printf "Total API Services:          %5d\t" $($CMD get apiservices | grep -v NAME | wc -l)
-printf "Non-Ready API Services:      %5d\n" $($CMD get apiservices | grep -v NAME | egrep -v "(.*)True(.*)" | wc -l)
+printf "Non-Ready API Services:      %5d\n" $($CMD get apiservices | grep -v NAME | grep -E -v "(.*)True(.*)" | wc -l)
 printf "Resource to investigate:\n"
-$CMD get apiservices | grep -v NAME | egrep -v "(.*)True(.*)"
+$CMD get apiservices | grep -v NAME | grep -E -v "(.*)True(.*)"
 
 # Machine Config Pool state
 printf "\nMachine Config Pool state:\n"
 printf "Total MCPs:         %5d\t" $($CMD get mcp | grep -v NAME | wc -l)
-printf "Non-Ready MCPs:     %5d\n" $($CMD get mcp | grep -v NAME | egrep -v "(.*)True(\s+)False(\s+)False(.*)" | wc -l)
+printf "Non-Ready MCPs:     %5d\n" $($CMD get mcp | grep -v NAME | grep -E -v "(.*)True(\s+)False(\s+)False(.*)" | wc -l)
 printf "Resource to investigate:\n"
-$CMD get mcp | grep -v NAME | egrep -v "(.*)True(\s+)False(\s+)False(.*)" 
+$CMD get mcp | grep -v NAME | grep -E -v "(.*)True(\s+)False(\s+)False(.*)" 
 
 # Operator state
 printf "\nOperator state:\n"
@@ -196,4 +196,4 @@ $CMD get pods -A | grep -v NAMESPACE | grep -v Running | grep -v Completed
 
 # Pod restarts, ordered by highest number of restarts first
 printf "\nPod restarts:\n"
-$CMD get pods -A -o wide | grep -v NAMESPACE | grep -v Completed | egrep -v "(.*)Running(\s+)0(.*)" | sort -k5 -n -r
+$CMD get pods -A -o wide | grep -v NAMESPACE | grep -v Completed | grep -E -v "(.*)Running(\s+)0(.*)" | sort -k5 -n -r
