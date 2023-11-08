@@ -21,7 +21,9 @@
 
   Options:
 
-  --live         => analyze a running cluster in real-time
-  --must-gather  => analyze a must-gather
-  --log          => log the output to a file named ocp4healthcheck.log (created in the current working directory)
+  --live | --must-gather  
+            live         => analyze a running cluster in real-time
+            must-gather  => analyze a must-gather
+  --scanaudit            => scan audit logs (only works with --live option for now)
+  --log                  => log the output to a file named ocp4healthcheck.log (created in the current working directory)
   ```
