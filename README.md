@@ -17,7 +17,7 @@
   ```
   ./ocp4healthcheck.sh 
 
-  usage: ocp4healthcheck.sh [--live | --must-gather] [--log]
+  usage: ocp4healthcheck.sh [--live | --must-gather] [--scanaudit] [--log]
 
   Options:
 
