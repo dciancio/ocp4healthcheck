@@ -199,7 +199,7 @@ if [[ $live ]]; then
   $CMD -n openshift-monitoring exec -c prometheus prometheus-k8s-0 -- curl -s 'http://localhost:9090/api/v1/alerts' | jq -r '.data[]|.[]|select(.state == "firing")|(.labels.alertname+"|"+.annotations.description+"\n")'
 fi
 if [[ $mustgather ]]; then
-  $CMD alert rule -o json | jq -r '.data[]|select(.state == "firing")|.alerts[]|(.labels.alertname+"|"+.annotations.message+"|"+.annotations.description+"\n")'
+  $CMD prometheus alertrule -o json | jq -r '.data[]|select(.state == "firing")|.alerts[]|(.labels.alertname+"|"+.annotations.message+"|"+.annotations.description+"\n")'
 fi
 
 # Cluster Events
