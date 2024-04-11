@@ -61,8 +61,6 @@ if [[ $log ]]; then
   exec &>ocp4healthcheck.log
 fi
 
-OCPVER=$($CMD get clusterversion -o=jsonpath={.items[*].status.desired.version})
-
 # OCP cluster info
 OCPVER=$($CMD get clusterversion -o=jsonpath={.items[*].status.desired.version})
 OCPCLUSTERID=$($CMD get clusterversion -o=jsonpath={.items[*].spec.clusterID})
