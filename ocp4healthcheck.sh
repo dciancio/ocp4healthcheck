@@ -241,7 +241,7 @@ $CMD get csv -A | grep -v NAMESPACE | grep -v Succeeded
 
 # Pending CSV updates reported in olm-operator pod
 printf "\nPending CSV updates reported in olm-operator pod:\n"
-$CMD logs $($CMD get pod --no-headers -l app=olm-operator -oname) | grep Pending | sed -n 's/^\(.*\)\(\s\)time="\(.*\)"\(\s\)level=\(.*\)\(\s\)msg="\(.*\)"\(\s\)csv=\(.*\)\(\s\)*id=\(.*\)\(\s\)namespace=\(.*\)\(\s\)phase=\(.*\)$/\3 \9/p' | awk '{print(substr($1,1,10),$2)}' | sort | uniq | column -N "DATE,CSV" -t
+$CMD logs -n openshift-operator-lifecycle-manager $($CMD get pod --no-headers -l app=olm-operator -oname -n openshift-operator-lifecycle-manager) | grep Pending | sed -n 's/^\(.*\)\(\s\)time="\(.*\)"\(\s\)level=\(.*\)\(\s\)msg="\(.*\)"\(\s\)csv=\(.*\)\(\s\)*id=\(.*\)\(\s\)namespace=\(.*\)\(\s\)phase=\(.*\)$/\3 \9/p' | awk '{print(substr($1,1,10),$2)}' | sort | uniq | column -N "DATE,CSV" -t
 
 # Operator sub
 printf "\nOperator subscription channels:\n"
